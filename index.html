@@ -294,7 +294,7 @@
    POLLAIO Content Hub — lógica do app
    ========================================================== */
 const CFG = window.POLLAIO_CONFIG;
-const supabase = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
+const sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
 
 let state = {
   session: null,
@@ -358,9 +358,9 @@ $('#login-form').addEventListener('submit', async (e)=>{
 
   let result;
   if(authMode === 'signup'){
-    result = await supabase.auth.signUp({ email, password, options:{ data:{ full_name: fullName } } });
+    result = await sb.auth.signUp({ email, password, options:{ data:{ full_name: fullName } } });
   } else {
-    result = await supabase.auth.signInWithPassword({ email, password });
+    result = await sb.auth.signInWithPassword({ email, password });
   }
 
   if(result.error){
@@ -387,7 +387,7 @@ function traduzErroAuth(msg){
 }
 
 $('#btn-logout').addEventListener('click', async ()=>{
-  await supabase.auth.signOut();
+  await sb.auth.signOut();
   location.reload();
 });
 
@@ -401,13 +401,13 @@ async function onAuthed(session){
 
 // checa sessão existente ao carregar
 (async ()=>{
-  const { data } = await supabase.auth.getSession();
+  const { data } = await sb.auth.getSession();
   if(data.session){ await onAuthed(data.session); }
 })();
 
 // ---------- CONTAS ----------
 async function loadAccounts(){
-  const { data, error } = await supabase.from('ig_accounts').select('*').order('created_at');
+  const { data, error } = await sb.from('ig_accounts').select('*').order('created_at');
   if(error){ showToast('Erro ao carregar contas: ' + error.message, true); return; }
   state.accounts = data || [];
   renderAccountList();
@@ -454,7 +454,7 @@ $('#btn-save-account').addEventListener('click', async ()=>{
     $('#add-account-error').textContent = 'Informe o usuário do Instagram.';
     return;
   }
-  const { data, error } = await supabase.from('ig_accounts').insert({
+  const { data, error } = await sb.from('ig_accounts').insert({
     username, display_name: display || username, notes,
     created_by: state.session.user.id,
   }).select().single();
@@ -481,13 +481,13 @@ async function selectAccount(id){
 
 // ---------- POSTS ----------
 async function loadPosts(accountId){
-  const { data, error } = await supabase.from('posts').select('*').eq('account_id', accountId).order('posted_at', { ascending:false });
+  const { data, error } = await sb.from('posts').select('*').eq('account_id', accountId).order('posted_at', { ascending:false });
   if(error){ showToast('Erro ao carregar posts: ' + error.message, true); return; }
   state.posts[accountId] = data || [];
 }
 
 async function loadInsights(accountId){
-  const { data, error } = await supabase.from('insights').select('*').eq('account_id', accountId).order('created_at', { ascending:false });
+  const { data, error } = await sb.from('insights').select('*').eq('account_id', accountId).order('created_at', { ascending:false });
   if(error){ showToast('Erro ao carregar insights: ' + error.message, true); return; }
   state.insights[accountId] = data || [];
 }
@@ -746,7 +746,7 @@ $('#btn-save-insight').addEventListener('click', async ()=>{
     $('#add-insight-error').textContent = 'Escreva o conteúdo da nota.';
     return;
   }
-  const { error } = await supabase.from('insights').insert({
+  const { error } = await sb.from('insights').insert({
     account_id: state.activeAccountId, content, category, created_by: state.session.user.id,
   });
   if(error){ $('#add-insight-error').textContent = error.message; return; }
@@ -885,10 +885,10 @@ $('#btn-confirm-csv-import').addEventListener('click', async ()=>{
   let imported = 0;
   for(let i=0; i<payload.length; i+=chunkSize){
     const chunk = payload.slice(i, i+chunkSize);
-    const { error } = await supabase.from('posts').upsert(chunk, { onConflict:'account_id,external_id', ignoreDuplicates:false });
+    const { error } = await sb.from('posts').upsert(chunk, { onConflict:'account_id,external_id', ignoreDuplicates:false });
     if(error && !error.message.includes('external_id')){
       // se não tiver external_id mapeado, faz insert simples (sem dedupe)
-      const { error: insertErr } = await supabase.from('posts').insert(chunk.map(({external_id, ...rest})=>rest));
+      const { error: insertErr } = await sb.from('posts').insert(chunk.map(({external_id, ...rest})=>rest));
       if(insertErr){ showToast('Erro ao importar: ' + insertErr.message, true); continue; }
     } else if(error){
       showToast('Erro ao importar: ' + error.message, true); continue;
@@ -917,7 +917,7 @@ function connectInstagram(acc){
 
 async function syncInstagram(acc){
   showToast('Sincronizando com o Instagram…');
-  const { data, error } = await supabase.functions.invoke('instagram-sync', { body: { account_id: acc.id } });
+  const { data, error } = await sb.functions.invoke('instagram-sync', { body: { account_id: acc.id } });
   if(error || (data && data.error)){
     showToast('Erro ao sincronizar: ' + ((data && data.error) || error.message), true);
     return;
