@@ -10,9 +10,9 @@ window.POLLAIO_CONFIG = {
   // Meta for Developers → seu app → Configurações básicas → ID do app
   // Necessário só se for usar "Conectar via Instagram" (Graph API).
   // Deixe em branco pra usar só CSV/manual por enquanto.
-  META_APP_ID: "",
+  META_APP_ID: "1459952089401927",
 
   // URL pública onde este site vai ficar publicado (sem barra no final).
   // Usada no redirect do login com Facebook/Instagram.
-  APP_URL: "https://pollaio.com.br/content-hub",
+  APP_URL: "https://hub.pollaio.com.br",
 };
