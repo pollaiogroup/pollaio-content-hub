@@ -18,7 +18,7 @@
 <script>
 (async ()=>{
   const CFG = window.POLLAIO_CONFIG;
-  const supabase = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
+  const sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
   const params = new URLSearchParams(window.location.search);
   const code = params.get('code');
   const stateParam = params.get('state');
@@ -38,7 +38,7 @@
   let accountId;
   try { accountId = JSON.parse(stateParam).account_id; } catch(e){}
 
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { session } } = await sb.auth.getSession();
   if(!session){
     document.getElementById('status').textContent = 'Sessão expirada';
     document.getElementById('detail').textContent = 'Faça login no Content Hub e tente conectar de novo.';
@@ -46,7 +46,7 @@
   }
 
   // chama a Edge Function que troca o code pelo access token (precisa do app secret, por isso roda no servidor)
-  const { data, error } = await supabase.functions.invoke('instagram-oauth', {
+  const { data, error } = await sb.functions.invoke('instagram-oauth', {
     body: { code, account_id: accountId, redirect_uri: CFG.APP_URL + '/oauth-callback.html' },
   });
 
