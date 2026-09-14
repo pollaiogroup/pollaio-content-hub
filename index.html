@@ -1,0 +1,935 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>POLLAIO — Content Hub</title>
+<meta name="description" content="Gestão e estratégia de conteúdo do Instagram das contas POLLAIO." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="config.js"></script>
+<style>
+  :root{
+    --bg:#000000; --panel:#181818; --panel-2:#1F1F1F; --panel-3:#272727; --border:#313131;
+    --text:#FFFFFF; --text-dim:#9B9B9B; --text-faint:#6B6B6B;
+    --accent:#FFFFFF; --danger:#FF6B5E; --good:#6EE7A8; --warn:#F5C451;
+    --radius:16px; --radius-sm:8px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:'Bricolage Grotesque', sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .mono{font-family:'Geist Mono', monospace;}
+  a{color:inherit;}
+  button{font-family:inherit; cursor:pointer; border:none;}
+  input, textarea, select{font-family:inherit; background:var(--panel-2); color:var(--text); border:1px solid var(--border); border-radius:var(--radius-sm); padding:10px 12px; font-size:14px;}
+  input:focus, textarea:focus, select:focus{outline:2px solid var(--text); outline-offset:1px;}
+
+  /* ---------- Login ---------- */
+  #login-screen{
+    min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;
+  }
+  .login-card{
+    width:100%; max-width:380px; background:var(--panel); border:1px solid var(--border);
+    border-radius:var(--radius); padding:32px;
+  }
+  .login-card h1{font-size:24px; font-weight:600; margin-bottom:4px;}
+  .login-card p{color:var(--text-dim); font-size:14px; margin-bottom:24px;}
+  .field{margin-bottom:12px;}
+  .field label{display:block; font-size:12px; color:var(--text-dim); margin-bottom:6px;}
+  .field input{width:100%;}
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    padding:10px 16px; border-radius:999px; font-size:14px; font-weight:500;
+    transition:transform 300ms cubic-bezier(0.32,0.72,0,1), background 300ms cubic-bezier(0.32,0.72,0,1);
+  }
+  .btn:active{transform:scale(0.98);}
+  .btn-primary{background:var(--text); color:#000;}
+  .btn-primary:hover{background:#e6e6e6;}
+  .btn-ghost{background:transparent; color:var(--text-dim); border:1px solid var(--border);}
+  .btn-ghost:hover{color:var(--text); border-color:var(--text-dim);}
+  .btn-block{width:100%;}
+  .btn-danger{background:transparent; color:var(--danger); border:1px solid var(--danger);}
+  .form-error{color:var(--danger); font-size:13px; margin-top:8px; min-height:16px;}
+  .toggle-line{text-align:center; margin-top:16px; font-size:13px; color:var(--text-dim);}
+  .toggle-line button{color:var(--text); text-decoration:underline; background:none; font-size:13px;}
+
+  /* ---------- App shell ---------- */
+  #app-screen{display:none; min-height:100vh; grid-template-columns:260px 1fr;}
+  #app-screen.active{display:grid;}
+  .sidebar{
+    background:var(--panel); border-right:1px solid var(--border);
+    padding:20px 16px; display:flex; flex-direction:column; min-height:100vh;
+  }
+  .brand{font-weight:700; font-size:18px; letter-spacing:-0.02em; margin-bottom:4px;}
+  .brand-sub{font-size:11px; color:var(--text-faint); margin-bottom:24px;}
+  .account-list{flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:4px;}
+  .account-tab{
+    display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:var(--radius-sm);
+    color:var(--text-dim); font-size:14px; text-align:left; background:transparent; width:100%;
+    transition:background 200ms cubic-bezier(0.32,0.72,0,1), color 200ms cubic-bezier(0.32,0.72,0,1);
+  }
+  .account-tab:hover{background:var(--panel-2); color:var(--text);}
+  .account-tab.active{background:var(--panel-3); color:var(--text); font-weight:500;}
+  .account-tab .dot{width:6px; height:6px; border-radius:50%; background:var(--text-faint); flex-shrink:0;}
+  .account-tab.active .dot{background:var(--good);}
+  .add-account-btn{
+    margin-top:8px; padding:10px 12px; border-radius:var(--radius-sm); border:1px dashed var(--border);
+    color:var(--text-dim); font-size:14px; text-align:left; background:transparent;
+  }
+  .add-account-btn:hover{color:var(--text); border-color:var(--text-dim);}
+  .sidebar-footer{border-top:1px solid var(--border); padding-top:16px; margin-top:16px; font-size:12px; color:var(--text-faint);}
+  .sidebar-footer .user-email{color:var(--text-dim); margin-bottom:8px; word-break:break-all;}
+
+  .main{padding:32px 40px; overflow-y:auto; max-height:100vh;}
+  .main-header{display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:28px; gap:16px; flex-wrap:wrap;}
+  .main-header h2{font-size:28px; font-weight:600;}
+  .main-header .handle{color:var(--text-dim); font-size:14px; margin-top:2px;}
+  .header-actions{display:flex; gap:8px; flex-wrap:wrap;}
+
+  .empty-state{
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; padding:80px 24px; color:var(--text-dim); gap:12px;
+  }
+  .empty-state h3{color:var(--text); font-size:18px; font-weight:600;}
+
+  /* tabs dentro da conta */
+  .subtabs{display:flex; gap:4px; border-bottom:1px solid var(--border); margin-bottom:24px;}
+  .subtab-btn{
+    padding:10px 4px; margin-right:20px; color:var(--text-dim); font-size:14px; background:none;
+    border-bottom:2px solid transparent; border-radius:0;
+  }
+  .subtab-btn.active{color:var(--text); border-bottom-color:var(--text); font-weight:500;}
+  .subtab-panel{display:none;}
+  .subtab-panel.active{display:block;}
+
+  /* cards de stats */
+  .stat-grid{display:grid; grid-template-columns:repeat(auto-fit, minmax(160px,1fr)); gap:12px; margin-bottom:28px;}
+  .stat-card{background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:16px;}
+  .stat-card .stat-label{font-size:12px; color:var(--text-dim); margin-bottom:6px;}
+  .stat-card .stat-value{font-size:24px; font-weight:600;}
+  .stat-card .stat-sub{font-size:12px; color:var(--text-faint); margin-top:4px;}
+
+  .section{background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:20px; margin-bottom:20px;}
+  .section h3{font-size:15px; font-weight:600; margin-bottom:14px;}
+
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  th{text-align:left; color:var(--text-dim); font-weight:500; padding:8px 10px; border-bottom:1px solid var(--border); white-space:nowrap;}
+  td{padding:8px 10px; border-bottom:1px solid var(--panel-3); vertical-align:top;}
+  tr:last-child td{border-bottom:none;}
+  .table-wrap{overflow-x:auto;}
+  .badge{display:inline-block; font-size:11px; padding:2px 8px; border-radius:999px; background:var(--panel-3); color:var(--text-dim);}
+  .badge.collab{background:#2A2410; color:var(--warn);}
+
+  .insight-item{padding:14px; border:1px solid var(--border); border-radius:var(--radius-sm); margin-bottom:10px; background:var(--panel-2);}
+  .insight-item .meta{font-size:11px; color:var(--text-faint); margin-bottom:6px; display:flex; gap:8px; align-items:center;}
+  .insight-item p{font-size:14px; line-height:1.5;}
+  .cat-alerta{color:var(--danger);}
+  .cat-estrategia{color:var(--good);}
+  .cat-insight{color:var(--text-dim);}
+
+  .modal-overlay{
+    display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); backdrop-filter:blur(8px);
+    align-items:center; justify-content:center; z-index:50; padding:20px;
+  }
+  .modal-overlay.active{display:flex;}
+  .modal{background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:24px; width:100%; max-width:480px; max-height:85vh; overflow-y:auto;}
+  .modal h3{font-size:18px; font-weight:600; margin-bottom:16px;}
+  .modal-actions{display:flex; gap:8px; justify-content:flex-end; margin-top:20px;}
+
+  .csv-map-row{display:grid; grid-template-columns:1fr 1fr; gap:10px; align-items:center; margin-bottom:8px; font-size:13px;}
+  .csv-map-row .col-name{color:var(--text-dim);}
+
+  .drop-zone{
+    border:1px dashed var(--border); border-radius:var(--radius-sm); padding:28px; text-align:center;
+    color:var(--text-dim); font-size:13px; cursor:pointer;
+  }
+  .drop-zone:hover{border-color:var(--text-dim); color:var(--text);}
+  .drop-zone.dragover{border-color:var(--good); color:var(--good);}
+
+  .toast{
+    position:fixed; bottom:24px; right:24px; background:var(--panel-3); border:1px solid var(--border);
+    padding:12px 18px; border-radius:var(--radius-sm); font-size:13px; z-index:100;
+    transform:translateY(16px); opacity:0; transition:all 400ms cubic-bezier(0.32,0.72,0,1);
+  }
+  .toast.show{transform:translateY(0); opacity:1;}
+  .toast.error{border-color:var(--danger); color:var(--danger);}
+
+  .skeleton{background:linear-gradient(90deg, var(--panel-2) 25%, var(--panel-3) 37%, var(--panel-2) 63%); background-size:400% 100%; animation:shimmer 1.4s ease infinite; border-radius:var(--radius-sm); height:16px;}
+  @keyframes shimmer{0%{background-position:100% 50%;} 100%{background-position:0 50%;}}
+
+  @media (max-width:800px){
+    #app-screen.active{display:flex; flex-direction:column;}
+    .sidebar{min-height:auto; flex-direction:row; overflow-x:auto; align-items:center;}
+    .account-list{flex-direction:row;}
+    .brand, .brand-sub, .sidebar-footer{display:none;}
+    .main{padding:20px;}
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<div id="login-screen">
+  <div class="login-card">
+    <h1>POLLAIO Content Hub</h1>
+    <p id="login-subtitle">Entre com sua conta da equipe.</p>
+    <form id="login-form">
+      <div class="field" id="name-field" style="display:none;">
+        <label for="full-name">Nome</label>
+        <input type="text" id="full-name" placeholder="Seu nome" />
+      </div>
+      <div class="field">
+        <label for="email">E-mail</label>
+        <input type="email" id="email" required placeholder="voce@pollaio.com.br" />
+      </div>
+      <div class="field">
+        <label for="password">Senha</label>
+        <input type="password" id="password" required placeholder="••••••••" minlength="6" />
+      </div>
+      <button type="submit" class="btn btn-primary btn-block" id="login-submit">Entrar</button>
+      <div class="form-error" id="login-error"></div>
+    </form>
+    <div class="toggle-line">
+      <span id="toggle-text">Ainda não tem conta?</span>
+      <button id="toggle-mode">Criar conta</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="app-screen">
+  <aside class="sidebar">
+    <div class="brand">POLLAIO</div>
+    <div class="brand-sub mono">CONTENT HUB</div>
+    <div class="account-list" id="account-list"></div>
+    <button class="add-account-btn" id="btn-add-account">+ Nova conta</button>
+    <div class="sidebar-footer">
+      <div class="user-email" id="user-email"></div>
+      <button class="btn btn-ghost" style="width:100%;" id="btn-logout">Sair</button>
+    </div>
+  </aside>
+
+  <main class="main" id="main-content">
+    <div class="empty-state">
+      <h3>Nenhuma conta cadastrada ainda</h3>
+      <p>Clique em "+ Nova conta" pra cadastrar o primeiro @ e começar a organizar o conteúdo.</p>
+    </div>
+  </main>
+</div>
+
+<!-- ============ MODAL: nova conta ============ -->
+<div class="modal-overlay" id="modal-add-account">
+  <div class="modal">
+    <h3>Cadastrar novo @</h3>
+    <div class="field">
+      <label>Usuário do Instagram (sem @)</label>
+      <input type="text" id="new-account-username" placeholder="ex: harmoniadobras" />
+    </div>
+    <div class="field">
+      <label>Nome de exibição</label>
+      <input type="text" id="new-account-display" placeholder="ex: Harmonia do Brás" />
+    </div>
+    <div class="field">
+      <label>Observações (opcional)</label>
+      <textarea id="new-account-notes" rows="3" placeholder="Contexto rápido sobre essa conta"></textarea>
+    </div>
+    <div class="form-error" id="add-account-error"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-add-account')">Cancelar</button>
+      <button class="btn btn-primary" id="btn-save-account">Cadastrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: mapear CSV ============ -->
+<div class="modal-overlay" id="modal-csv-map">
+  <div class="modal" style="max-width:560px;">
+    <h3>Mapear colunas do CSV</h3>
+    <p style="color:var(--text-dim); font-size:13px; margin-bottom:16px;">
+      Relacione as colunas do seu arquivo com os campos do relatório. Deixe em branco o que não existir.
+    </p>
+    <div id="csv-map-fields"></div>
+    <div class="form-error" id="csv-map-error"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-csv-map')">Cancelar</button>
+      <button class="btn btn-primary" id="btn-confirm-csv-import">Importar posts</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: nova nota de insight ============ -->
+<div class="modal-overlay" id="modal-add-insight">
+  <div class="modal">
+    <h3>Nova nota</h3>
+    <div class="field">
+      <label>Categoria</label>
+      <select id="new-insight-category">
+        <option value="insight">Insight</option>
+        <option value="estrategia">Estratégia</option>
+        <option value="alerta">Alerta</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Conteúdo</label>
+      <textarea id="new-insight-content" rows="4" placeholder="O que observar ou fazer nos próximos dias"></textarea>
+    </div>
+    <div class="form-error" id="add-insight-error"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-add-insight')">Cancelar</button>
+      <button class="btn btn-primary" id="btn-save-insight">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ==========================================================
+   POLLAIO Content Hub — lógica do app
+   ========================================================== */
+const CFG = window.POLLAIO_CONFIG;
+const supabase = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
+
+let state = {
+  session: null,
+  accounts: [],
+  activeAccountId: null,
+  posts: {},      // accountId -> array
+  insights: {},   // accountId -> array
+  pendingCsvRows: null,
+  activeSubtab: 'report',
+};
+
+// ---------- helpers ----------
+function $(sel){ return document.querySelector(sel); }
+function $all(sel){ return document.querySelectorAll(sel); }
+function openModal(id){ $('#'+id).classList.add('active'); }
+function closeModal(id){ $('#'+id).classList.remove('active'); }
+function showToast(msg, isError){
+  const t = $('#toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (isError ? ' error' : '');
+  setTimeout(()=> t.classList.remove('show'), 3200);
+}
+function fmtNum(n){ return (n||0).toLocaleString('pt-BR'); }
+function fmtDate(d){
+  if(!d) return '—';
+  return new Date(d).toLocaleDateString('pt-BR', {day:'2-digit', month:'short', year:'numeric'});
+}
+function daysAgo(d){
+  if(!d) return null;
+  return Math.floor((Date.now() - new Date(d).getTime()) / 86400000);
+}
+
+// ---------- AUTH ----------
+let authMode = 'login'; // ou 'signup'
+
+$('#toggle-mode').addEventListener('click', ()=>{
+  authMode = authMode === 'login' ? 'signup' : 'login';
+  if(authMode === 'signup'){
+    $('#login-subtitle').textContent = 'Crie sua conta individual da equipe.';
+    $('#name-field').style.display = 'block';
+    $('#login-submit').textContent = 'Criar conta';
+    $('#toggle-text').textContent = 'Já tem conta?';
+    $('#toggle-mode').textContent = 'Entrar';
+  } else {
+    $('#login-subtitle').textContent = 'Entre com sua conta da equipe.';
+    $('#name-field').style.display = 'none';
+    $('#login-submit').textContent = 'Entrar';
+    $('#toggle-text').textContent = 'Ainda não tem conta?';
+    $('#toggle-mode').textContent = 'Criar conta';
+  }
+  $('#login-error').textContent = '';
+});
+
+$('#login-form').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const email = $('#email').value.trim();
+  const password = $('#password').value;
+  const fullName = $('#full-name').value.trim();
+  $('#login-error').textContent = '';
+  $('#login-submit').textContent = 'Aguarde...';
+
+  let result;
+  if(authMode === 'signup'){
+    result = await supabase.auth.signUp({ email, password, options:{ data:{ full_name: fullName } } });
+  } else {
+    result = await supabase.auth.signInWithPassword({ email, password });
+  }
+
+  if(result.error){
+    $('#login-error').textContent = traduzErroAuth(result.error.message);
+    $('#login-submit').textContent = authMode === 'signup' ? 'Criar conta' : 'Entrar';
+    return;
+  }
+
+  if(authMode === 'signup' && !result.data.session){
+    $('#login-error').style.color = 'var(--good)';
+    $('#login-error').textContent = 'Conta criada. Confira seu e-mail pra confirmar o acesso.';
+    $('#login-submit').textContent = 'Criar conta';
+    return;
+  }
+
+  await onAuthed(result.data.session);
+});
+
+function traduzErroAuth(msg){
+  if(msg.includes('Invalid login credentials')) return 'E-mail ou senha incorretos.';
+  if(msg.includes('User already registered')) return 'Esse e-mail já tem conta. Tente entrar.';
+  if(msg.includes('Password should be')) return 'A senha precisa ter pelo menos 6 caracteres.';
+  return msg;
+}
+
+$('#btn-logout').addEventListener('click', async ()=>{
+  await supabase.auth.signOut();
+  location.reload();
+});
+
+async function onAuthed(session){
+  state.session = session;
+  $('#login-screen').style.display = 'none';
+  $('#app-screen').classList.add('active');
+  $('#user-email').textContent = session.user.email;
+  await loadAccounts();
+}
+
+// checa sessão existente ao carregar
+(async ()=>{
+  const { data } = await supabase.auth.getSession();
+  if(data.session){ await onAuthed(data.session); }
+})();
+
+// ---------- CONTAS ----------
+async function loadAccounts(){
+  const { data, error } = await supabase.from('ig_accounts').select('*').order('created_at');
+  if(error){ showToast('Erro ao carregar contas: ' + error.message, true); return; }
+  state.accounts = data || [];
+  renderAccountList();
+  if(state.accounts.length && !state.activeAccountId){
+    selectAccount(state.accounts[0].id);
+  } else if(!state.accounts.length){
+    renderEmptyMain();
+  }
+}
+
+function renderAccountList(){
+  const list = $('#account-list');
+  list.innerHTML = '';
+  state.accounts.forEach(acc=>{
+    const btn = document.createElement('button');
+    btn.className = 'account-tab' + (acc.id === state.activeAccountId ? ' active' : '');
+    btn.innerHTML = `<span class="dot"></span> @${acc.username}`;
+    btn.addEventListener('click', ()=> selectAccount(acc.id));
+    list.appendChild(btn);
+  });
+}
+
+function renderEmptyMain(){
+  $('#main-content').innerHTML = `
+    <div class="empty-state">
+      <h3>Nenhuma conta cadastrada ainda</h3>
+      <p>Clique em "+ Nova conta" pra cadastrar o primeiro @ e começar a organizar o conteúdo.</p>
+    </div>`;
+}
+
+$('#btn-add-account').addEventListener('click', ()=>{
+  $('#new-account-username').value = '';
+  $('#new-account-display').value = '';
+  $('#new-account-notes').value = '';
+  $('#add-account-error').textContent = '';
+  openModal('modal-add-account');
+});
+
+$('#btn-save-account').addEventListener('click', async ()=>{
+  let username = $('#new-account-username').value.trim().replace(/^@/, '');
+  const display = $('#new-account-display').value.trim();
+  const notes = $('#new-account-notes').value.trim();
+  if(!username){
+    $('#add-account-error').textContent = 'Informe o usuário do Instagram.';
+    return;
+  }
+  const { data, error } = await supabase.from('ig_accounts').insert({
+    username, display_name: display || username, notes,
+    created_by: state.session.user.id,
+  }).select().single();
+
+  if(error){
+    $('#add-account-error').textContent = error.code === '23505'
+      ? 'Essa conta já está cadastrada.'
+      : error.message;
+    return;
+  }
+  closeModal('modal-add-account');
+  await loadAccounts();
+  selectAccount(data.id);
+  showToast('Conta @' + username + ' cadastrada.');
+});
+
+async function selectAccount(id){
+  state.activeAccountId = id;
+  state.activeSubtab = 'report';
+  renderAccountList();
+  await Promise.all([loadPosts(id), loadInsights(id)]);
+  renderMain();
+}
+
+// ---------- POSTS ----------
+async function loadPosts(accountId){
+  const { data, error } = await supabase.from('posts').select('*').eq('account_id', accountId).order('posted_at', { ascending:false });
+  if(error){ showToast('Erro ao carregar posts: ' + error.message, true); return; }
+  state.posts[accountId] = data || [];
+}
+
+async function loadInsights(accountId){
+  const { data, error } = await supabase.from('insights').select('*').eq('account_id', accountId).order('created_at', { ascending:false });
+  if(error){ showToast('Erro ao carregar insights: ' + error.message, true); return; }
+  state.insights[accountId] = data || [];
+}
+
+// ---------- RENDER PRINCIPAL ----------
+function renderMain(){
+  const acc = state.accounts.find(a=>a.id === state.activeAccountId);
+  if(!acc) return renderEmptyMain();
+  const posts = state.posts[acc.id] || [];
+  const stats = computeStats(posts);
+
+  $('#main-content').innerHTML = `
+    <div class="main-header">
+      <div>
+        <h2>@${acc.username}</h2>
+        <div class="handle">${acc.display_name || ''}${acc.connected_via === 'graph_api' ? ' · conectado via Instagram' : ' · dados manuais/CSV'}</div>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-ghost" id="btn-connect-ig">${acc.connected_via === 'graph_api' ? 'Reconectar Instagram' : 'Conectar via Instagram'}</button>
+        ${acc.connected_via === 'graph_api' ? '<button class="btn btn-ghost" id="btn-sync-ig">Sincronizar agora</button>' : ''}
+        <button class="btn btn-primary" id="btn-upload-csv">Importar CSV</button>
+        <input type="file" id="csv-file-input" accept=".csv" style="display:none;" />
+      </div>
+    </div>
+
+    <div class="subtabs">
+      <button class="subtab-btn ${state.activeSubtab==='report'?'active':''}" data-subtab="report">Relatório</button>
+      <button class="subtab-btn ${state.activeSubtab==='posts'?'active':''}" data-subtab="posts">Posts</button>
+      <button class="subtab-btn ${state.activeSubtab==='insights'?'active':''}" data-subtab="insights">Estratégia &amp; insights</button>
+    </div>
+
+    <div class="subtab-panel ${state.activeSubtab==='report'?'active':''}" id="panel-report">
+      ${renderReportPanel(acc, posts, stats)}
+    </div>
+    <div class="subtab-panel ${state.activeSubtab==='posts'?'active':''}" id="panel-posts">
+      ${renderPostsPanel(posts)}
+    </div>
+    <div class="subtab-panel ${state.activeSubtab==='insights'?'active':''}" id="panel-insights">
+      ${renderInsightsPanel(acc, stats)}
+    </div>
+  `;
+
+  $all('.subtab-btn').forEach(b=> b.addEventListener('click', ()=>{
+    state.activeSubtab = b.dataset.subtab;
+    renderMain();
+  }));
+  $('#btn-upload-csv').addEventListener('click', ()=> $('#csv-file-input').click());
+  $('#csv-file-input').addEventListener('change', handleCsvSelected);
+  $('#btn-connect-ig').addEventListener('click', ()=> connectInstagram(acc));
+  const syncBtn = $('#btn-sync-ig');
+  if(syncBtn) syncBtn.addEventListener('click', ()=> syncInstagram(acc));
+
+  if(state.activeSubtab === 'insights'){
+    const addBtn = $('#btn-add-insight-note');
+    if(addBtn) addBtn.addEventListener('click', ()=>{
+      $('#new-insight-content').value = '';
+      $('#add-insight-error').textContent = '';
+      openModal('modal-add-insight');
+    });
+  }
+}
+
+// ---------- STATS ----------
+function computeStats(posts){
+  const total = posts.length;
+  const byType = { feed:0, reel:0, story:0, collab:0 };
+  let likesSum=0, commentsSum=0, reachSum=0, collabCount=0;
+  let lastStory = null, lastPost = null;
+
+  posts.forEach(p=>{
+    const t = p.is_collab ? 'collab' : (p.post_type || 'feed');
+    byType[t] = (byType[t]||0) + 1;
+    likesSum += p.likes||0;
+    commentsSum += p.comments||0;
+    reachSum += p.reach||0;
+    if(p.is_collab) collabCount++;
+    if(p.post_type === 'story' && (!lastStory || new Date(p.posted_at) > new Date(lastStory))) lastStory = p.posted_at;
+    if(!lastPost || new Date(p.posted_at) > new Date(lastPost)) lastPost = p.posted_at;
+  });
+
+  const now = Date.now();
+  const last30 = posts.filter(p=> p.posted_at && (now - new Date(p.posted_at).getTime()) <= 30*86400000);
+  const prev30 = posts.filter(p=> p.posted_at && (now - new Date(p.posted_at).getTime()) > 30*86400000 && (now - new Date(p.posted_at).getTime()) <= 60*86400000);
+  const engRate = (arr)=> {
+    if(!arr.length) return 0;
+    const sum = arr.reduce((s,p)=> s + (p.likes||0) + (p.comments||0), 0);
+    return sum / arr.length;
+  };
+  const eng30 = engRate(last30);
+  const engPrev30 = engRate(prev30);
+  const engDelta = engPrev30 > 0 ? ((eng30 - engPrev30) / engPrev30) * 100 : null;
+
+  const topPosts = [...posts].sort((a,b)=> (b.likes||0)+(b.comments||0) - ((a.likes||0)+(a.comments||0))).slice(0,5);
+
+  return {
+    total, byType, collabCount,
+    collabPct: total ? Math.round((collabCount/total)*100) : 0,
+    avgLikes: total ? Math.round(likesSum/total) : 0,
+    avgComments: total ? Math.round(commentsSum/total) : 0,
+    avgReach: total ? Math.round(reachSum/total) : 0,
+    lastStory, lastPost,
+    daysSinceStory: daysAgo(lastStory),
+    daysSincePost: daysAgo(lastPost),
+    last30Count: last30.length, prev30Count: prev30.length,
+    engDelta, topPosts,
+  };
+}
+
+function renderReportPanel(acc, posts, s){
+  if(!posts.length){
+    return `<div class="empty-state"><h3>Ainda não há posts importados</h3><p>Importe um CSV do Meta Business Suite ou conecte a conta via Instagram pra gerar o relatório.</p></div>`;
+  }
+  return `
+    <div class="stat-grid">
+      <div class="stat-card"><div class="stat-label">Total de posts</div><div class="stat-value">${fmtNum(s.total)}</div></div>
+      <div class="stat-card"><div class="stat-label">Curtidas médias</div><div class="stat-value">${fmtNum(s.avgLikes)}</div></div>
+      <div class="stat-card"><div class="stat-label">Comentários médios</div><div class="stat-value">${fmtNum(s.avgComments)}</div></div>
+      <div class="stat-card"><div class="stat-label">Alcance médio</div><div class="stat-value">${s.avgReach ? fmtNum(s.avgReach) : '—'}</div></div>
+      <div class="stat-card"><div class="stat-label">% em Collab</div><div class="stat-value">${s.collabPct}%</div><div class="stat-sub">${s.collabCount} de ${s.total} posts</div></div>
+      <div class="stat-card"><div class="stat-label">Dias sem story</div><div class="stat-value" style="color:${s.daysSinceStory!==null && s.daysSinceStory>5 ? 'var(--warn)':'var(--text)'}">${s.daysSinceStory ?? '—'}</div></div>
+      <div class="stat-card"><div class="stat-label">Posts (últimos 30d)</div><div class="stat-value">${s.last30Count}</div><div class="stat-sub">vs ${s.prev30Count} nos 30d anteriores</div></div>
+      <div class="stat-card"><div class="stat-label">Variação de engajamento</div><div class="stat-value" style="color:${s.engDelta===null?'var(--text)':(s.engDelta>=0?'var(--good)':'var(--danger)')}">${s.engDelta===null?'—':(s.engDelta>=0?'+':'')+s.engDelta.toFixed(1)+'%'}</div><div class="stat-sub">30d vs 30d anteriores</div></div>
+    </div>
+
+    <div class="section">
+      <h3>Distribuição por tipo</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Tipo</th><th>Quantidade</th><th>% do total</th></tr></thead>
+          <tbody>
+            ${Object.entries(s.byType).filter(([,v])=>v>0).map(([type,count])=>`
+              <tr><td>${labelTipo(type)}</td><td>${count}</td><td>${Math.round((count/s.total)*100)}%</td></tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Top 5 posts por engajamento</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Data</th><th>Tipo</th><th>Legenda</th><th>Curtidas</th><th>Comentários</th></tr></thead>
+          <tbody>
+            ${s.topPosts.map(p=>`
+              <tr>
+                <td class="mono">${fmtDate(p.posted_at)}</td>
+                <td>${p.is_collab ? '<span class="badge collab">Collab</span>' : labelTipo(p.post_type)}</td>
+                <td style="max-width:320px;">${truncar(p.caption, 90)}</td>
+                <td>${fmtNum(p.likes)}</td>
+                <td>${fmtNum(p.comments)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function labelTipo(t){
+  return { feed:'Feed', reel:'Reel', story:'Story', collab:'Collab' }[t] || t;
+}
+function truncar(str, n){
+  if(!str) return '—';
+  return str.length > n ? str.slice(0,n) + '…' : str;
+}
+
+function renderPostsPanel(posts){
+  if(!posts.length){
+    return `<div class="empty-state"><h3>Nenhum post organizado ainda</h3><p>Importe um CSV pra listar os posts aqui.</p></div>`;
+  }
+  return `
+    <div class="section">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Data</th><th>Tipo</th><th>Legenda</th><th>Curtidas</th><th>Comentários</th><th>Alcance</th><th>Origem</th></tr></thead>
+          <tbody>
+            ${posts.map(p=>`
+              <tr>
+                <td class="mono">${fmtDate(p.posted_at)}</td>
+                <td>${p.is_collab ? '<span class="badge collab">Collab</span>' : `<span class="badge">${labelTipo(p.post_type)}</span>`}</td>
+                <td style="max-width:340px;">${p.permalink ? `<a href="${p.permalink}" target="_blank" rel="noopener">${truncar(p.caption,80)}</a>` : truncar(p.caption,80)}</td>
+                <td>${fmtNum(p.likes)}</td>
+                <td>${fmtNum(p.comments)}</td>
+                <td>${p.reach ? fmtNum(p.reach) : '—'}</td>
+                <td class="mono" style="color:var(--text-faint); font-size:11px;">${p.source}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function renderInsightsPanel(acc, s){
+  const notes = state.insights[acc.id] || [];
+  const autoFlags = gerarFlagsAutomaticas(s);
+  return `
+    <div class="section">
+      <h3>Sinais automáticos</h3>
+      ${autoFlags.length ? autoFlags.map(f=>`
+        <div class="insight-item">
+          <div class="meta"><span class="cat-${f.category}">● ${labelCategoria(f.category)}</span><span>gerado automaticamente</span></div>
+          <p>${f.content}</p>
+        </div>
+      `).join('') : '<p style="color:var(--text-dim); font-size:13px;">Nenhum sinal relevante com os dados atuais.</p>'}
+    </div>
+
+    <div class="section">
+      <h3 style="display:flex; justify-content:space-between; align-items:center;">
+        Notas da equipe
+        <button class="btn btn-ghost" id="btn-add-insight-note" style="padding:6px 12px; font-size:13px;">+ Nova nota</button>
+      </h3>
+      ${notes.length ? notes.map(n=>`
+        <div class="insight-item">
+          <div class="meta"><span class="cat-${n.category}">● ${labelCategoria(n.category)}</span><span>${fmtDate(n.created_at)}</span></div>
+          <p>${n.content}</p>
+        </div>
+      `).join('') : '<p style="color:var(--text-dim); font-size:13px;">Nenhuma nota ainda. Registre estratégias e próximos passos aqui.</p>'}
+    </div>
+  `;
+}
+
+function labelCategoria(c){
+  return { insight:'Insight', estrategia:'Estratégia', alerta:'Alerta' }[c] || c;
+}
+
+function gerarFlagsAutomaticas(s){
+  const flags = [];
+  if(!s.total) return flags;
+  if(s.daysSinceStory !== null && s.daysSinceStory > 5){
+    flags.push({ category:'alerta', content:`Sem stories há ${s.daysSinceStory} dias. Esse é o principal vácuo de presença — mesmo com posts de feed em dia, a ausência de stories reduz o alcance orgânico.` });
+  }
+  if(s.collabPct > 60){
+    flags.push({ category:'insight', content:`${s.collabPct}% dos posts são Collabs. Isso amplia alcance, mas os dados de performance desses posts ficam parcialmente fora dos exports automáticos — vale conferir manualmente os números direto no Instagram.` });
+  }
+  if(s.engDelta !== null){
+    if(s.engDelta <= -15){
+      flags.push({ category:'alerta', content:`Engajamento caiu ${Math.abs(s.engDelta).toFixed(1)}% nos últimos 30 dias em relação ao período anterior. Vale revisar formatos e horários recentes.` });
+    } else if(s.engDelta >= 15){
+      flags.push({ category:'estrategia', content:`Engajamento subiu ${s.engDelta.toFixed(1)}% nos últimos 30 dias. Vale identificar o que mudou nesse período e repetir o padrão.` });
+    }
+  }
+  if(s.last30Count < s.prev30Count * 0.6 && s.prev30Count > 0){
+    flags.push({ category:'alerta', content:`Cadência de publicação caiu: ${s.last30Count} posts nos últimos 30 dias contra ${s.prev30Count} no período anterior.` });
+  }
+  return flags;
+}
+
+$('#btn-save-insight').addEventListener('click', async ()=>{
+  const content = $('#new-insight-content').value.trim();
+  const category = $('#new-insight-category').value;
+  if(!content){
+    $('#add-insight-error').textContent = 'Escreva o conteúdo da nota.';
+    return;
+  }
+  const { error } = await supabase.from('insights').insert({
+    account_id: state.activeAccountId, content, category, created_by: state.session.user.id,
+  });
+  if(error){ $('#add-insight-error').textContent = error.message; return; }
+  closeModal('modal-add-insight');
+  await loadInsights(state.activeAccountId);
+  renderMain();
+  showToast('Nota salva.');
+});
+
+// ---------- CSV IMPORT ----------
+const CSV_FIELDS = [
+  { key:'posted_at', label:'Data de publicação' },
+  { key:'post_type', label:'Tipo (feed/reel/story)' },
+  { key:'caption', label:'Legenda' },
+  { key:'permalink', label:'Link do post' },
+  { key:'likes', label:'Curtidas' },
+  { key:'comments', label:'Comentários' },
+  { key:'reach', label:'Alcance' },
+  { key:'saves', label:'Salvamentos' },
+  { key:'shares', label:'Compartilhamentos' },
+  { key:'external_id', label:'ID do post' },
+];
+
+function handleCsvSelected(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  Papa.parse(file, {
+    header:true, skipEmptyLines:true,
+    complete: (res)=>{
+      if(!res.data.length){ showToast('CSV vazio ou ilegível.', true); return; }
+      state.pendingCsvRows = res.data;
+      openCsvMapModal(res.meta.fields || Object.keys(res.data[0]));
+    },
+    error: (err)=> showToast('Erro ao ler CSV: ' + err.message, true),
+  });
+  e.target.value = '';
+}
+
+function openCsvMapModal(columns){
+  const container = $('#csv-map-fields');
+  container.innerHTML = CSV_FIELDS.map(f=>`
+    <div class="csv-map-row">
+      <span class="col-name">${f.label}</span>
+      <select data-field="${f.key}">
+        <option value="">— não mapear —</option>
+        ${columns.map(c=>`<option value="${escapeHtml(c)}" ${guessMatch(f.key,c)?'selected':''}>${escapeHtml(c)}</option>`).join('')}
+      </select>
+    </div>
+  `).join('');
+  $('#csv-map-error').textContent = '';
+  openModal('modal-csv-map');
+}
+
+function guessMatch(fieldKey, colName){
+  const c = colName.toLowerCase();
+  const guesses = {
+    posted_at: ['publish', 'data', 'date', 'time'],
+    post_type: ['type', 'tipo', 'format'],
+    caption: ['caption', 'legenda', 'description', 'texto'],
+    permalink: ['permalink', 'link', 'url'],
+    likes: ['like', 'curtida'],
+    comments: ['comment', 'comentário', 'comentario'],
+    reach: ['reach', 'alcance'],
+    saves: ['save', 'salvamento'],
+    shares: ['share', 'compartilh'],
+    external_id: ['post id', 'id do post', 'media id'],
+  };
+  return (guesses[fieldKey]||[]).some(g=> c.includes(g));
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, m=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+function parseNum(v){
+  if(v === undefined || v === null || v === '') return 0;
+  const n = parseFloat(String(v).replace(/\./g,'').replace(',', '.').replace(/[^\d.-]/g,''));
+  return isNaN(n) ? 0 : Math.round(n);
+}
+
+function parseDate(v){
+  if(!v) return null;
+  const d = new Date(v);
+  return isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+function guessPostType(v){
+  if(!v) return 'feed';
+  const s = String(v).toLowerCase();
+  if(s.includes('reel')) return 'reel';
+  if(s.includes('story') || s.includes('stories')) return 'story';
+  if(s.includes('collab') || s.includes('convidado')) return 'feed';
+  return 'feed';
+}
+
+$('#btn-confirm-csv-import').addEventListener('click', async ()=>{
+  const mapping = {};
+  $all('#csv-map-fields select').forEach(sel=>{ mapping[sel.dataset.field] = sel.value; });
+
+  if(!mapping.posted_at){
+    $('#csv-map-error').textContent = 'Mapeie ao menos a coluna de data.';
+    return;
+  }
+
+  const rows = state.pendingCsvRows;
+  const accountId = state.activeAccountId;
+  const userId = state.session.user.id;
+
+  const payload = rows.map(r=>{
+    const rawType = mapping.post_type ? r[mapping.post_type] : '';
+    return {
+      account_id: accountId,
+      external_id: mapping.external_id ? (r[mapping.external_id] || null) : null,
+      post_type: guessPostType(rawType),
+      is_collab: rawType ? String(rawType).toLowerCase().includes('collab') : false,
+      caption: mapping.caption ? (r[mapping.caption] || null) : null,
+      permalink: mapping.permalink ? (r[mapping.permalink] || null) : null,
+      posted_at: parseDate(mapping.posted_at ? r[mapping.posted_at] : null),
+      likes: mapping.likes ? parseNum(r[mapping.likes]) : 0,
+      comments: mapping.comments ? parseNum(r[mapping.comments]) : 0,
+      reach: mapping.reach ? parseNum(r[mapping.reach]) : 0,
+      saves: mapping.saves ? parseNum(r[mapping.saves]) : 0,
+      shares: mapping.shares ? parseNum(r[mapping.shares]) : 0,
+      source: 'csv',
+      created_by: userId,
+    };
+  }).filter(p=> p.posted_at);
+
+  if(!payload.length){
+    $('#csv-map-error').textContent = 'Nenhuma linha com data válida foi encontrada.';
+    return;
+  }
+
+  // upsert em lotes pra não estourar o payload
+  const chunkSize = 200;
+  let imported = 0;
+  for(let i=0; i<payload.length; i+=chunkSize){
+    const chunk = payload.slice(i, i+chunkSize);
+    const { error } = await supabase.from('posts').upsert(chunk, { onConflict:'account_id,external_id', ignoreDuplicates:false });
+    if(error && !error.message.includes('external_id')){
+      // se não tiver external_id mapeado, faz insert simples (sem dedupe)
+      const { error: insertErr } = await supabase.from('posts').insert(chunk.map(({external_id, ...rest})=>rest));
+      if(insertErr){ showToast('Erro ao importar: ' + insertErr.message, true); continue; }
+    } else if(error){
+      showToast('Erro ao importar: ' + error.message, true); continue;
+    }
+    imported += chunk.length;
+  }
+
+  closeModal('modal-csv-map');
+  await loadPosts(accountId);
+  renderMain();
+  showToast(`${imported} posts importados.`);
+});
+
+// ---------- INSTAGRAM GRAPH API (OAuth) ----------
+function connectInstagram(acc){
+  if(!CFG.META_APP_ID){
+    showToast('Cadastre o META_APP_ID no config.js pra habilitar essa conexão.', true);
+    return;
+  }
+  const redirectUri = encodeURIComponent(CFG.APP_URL + '/oauth-callback.html');
+  const scope = encodeURIComponent('instagram_basic,pages_show_list,instagram_manage_insights,business_management');
+  const state = encodeURIComponent(JSON.stringify({ account_id: acc.id }));
+  const url = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${CFG.META_APP_ID}&redirect_uri=${redirectUri}&scope=${scope}&state=${state}&response_type=code`;
+  window.location.href = url;
+}
+
+async function syncInstagram(acc){
+  showToast('Sincronizando com o Instagram…');
+  const { data, error } = await supabase.functions.invoke('instagram-sync', { body: { account_id: acc.id } });
+  if(error || (data && data.error)){
+    showToast('Erro ao sincronizar: ' + ((data && data.error) || error.message), true);
+    return;
+  }
+  await loadPosts(acc.id);
+  renderMain();
+  showToast(`${data.imported} posts sincronizados.`);
+}
+
+document.addEventListener('click', (e)=>{
+  if(e.target.classList.contains('modal-overlay')) e.target.classList.remove('active');
+});
+</script>
+</body>
+</html>

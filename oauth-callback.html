@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<title>Conectando…</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<style>
+  body{background:#000; color:#fff; font-family:sans-serif; display:flex; align-items:center; justify-content:center; height:100vh; text-align:center;}
+  p{color:#9B9B9B; font-size:14px;}
+</style>
+</head>
+<body>
+<div>
+  <h2 id="status">Conectando ao Instagram…</h2>
+  <p id="detail">Aguarde um instante.</p>
+</div>
+<script>
+(async ()=>{
+  const CFG = window.POLLAIO_CONFIG;
+  const supabase = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  const stateParam = params.get('state');
+  const errorParam = params.get('error_description') || params.get('error');
+
+  if(errorParam){
+    document.getElementById('status').textContent = 'Conexão cancelada';
+    document.getElementById('detail').textContent = errorParam;
+    return;
+  }
+  if(!code || !stateParam){
+    document.getElementById('status').textContent = 'Link inválido';
+    document.getElementById('detail').textContent = 'Volte ao Content Hub e tente novamente.';
+    return;
+  }
+
+  let accountId;
+  try { accountId = JSON.parse(stateParam).account_id; } catch(e){}
+
+  const { data: { session } } = await supabase.auth.getSession();
+  if(!session){
+    document.getElementById('status').textContent = 'Sessão expirada';
+    document.getElementById('detail').textContent = 'Faça login no Content Hub e tente conectar de novo.';
+    return;
+  }
+
+  // chama a Edge Function que troca o code pelo access token (precisa do app secret, por isso roda no servidor)
+  const { data, error } = await supabase.functions.invoke('instagram-oauth', {
+    body: { code, account_id: accountId, redirect_uri: CFG.APP_URL + '/oauth-callback.html' },
+  });
+
+  if(error || (data && data.error)){
+    document.getElementById('status').textContent = 'Não foi possível conectar';
+    document.getElementById('detail').textContent = (data && data.error) || error.message;
+    return;
+  }
+
+  document.getElementById('status').textContent = 'Conectado!';
+  document.getElementById('detail').textContent = 'Redirecionando…';
+  setTimeout(()=> window.location.href = './index.html', 1200);
+})();
+</script>
+</body>
+</html>
